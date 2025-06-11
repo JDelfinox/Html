@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa de Mesas com QR Code</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JQuery e QRCode -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js" defer></script>
+  <!-- FontAwesome CDN -->
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous" defer></script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background-color: #6b7280; /* gray-600 */
+      border-radius: 3px;
+    }
+
+    /* Modal Background Scroll Lock */
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    /* Print Styles */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-area, #printable-area * {
+        visibility: visible;
+      }
+      #printable-area {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        padding: 2rem;
+        background: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans text-gray-900">
+  <div class="flex h-screen max-w-full mx-auto border border-gray-300 rounded-none overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="flex flex-col bg-gray-200 w-[80px] items-center py-6 space-y-8 border-r border-gray-300 shrink-0 h-full">
+      <div class="flex flex-col items-center space-y-2">
+        <img alt="Logo Bastardos circular black background with white text" class="w-12 h-12 rounded-full" height="48" src="https://storage.googleapis.com/a1aa/image/318a6b6a-2e68-4864-4ce5-dd3e94b738e7.jpg" width="48" />
+        <span class="bg-green-600 text-white text-[10px] font-semibold px-2 rounded-full select-none">Online</span>
+      </div>
+      <button aria-label="Notificações" class="text-gray-600 hover:text-gray-900 text-xl focus:outline-none focus:ring-2 focus:ring-green-500" title="Notificações">
+        <i class="fas fa-bell" aria-hidden="true"></i>
+      </button>
+      <button aria-label="Pedidos" class="text-gray-600 hover:text-gray-900 text-xl focus:outline-none focus:ring-2 focus:ring-green-500" title="Pedidos">
+        <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+      </button>
+      <button aria-label="Estatísticas" class="text-gray-600 hover:text-gray-900 text-xl focus:outline-none focus:ring-2 focus:ring-green-500" title="Estatísticas">
+        <i class="fas fa-chart-bar" aria-hidden="true"></i>
+      </button>
+      <button aria-label="Ajuda" class="text-gray-600 hover:text-gray-900 text-xl focus:outline-none focus:ring-2 focus:ring-green-500" title="Ajuda">
+        <i class="fas fa-question-circle" aria-hidden="true"></i>
+      </button>
+    </aside>
+
+    <!-- Mapa de Mesas -->
+    <main class="flex flex-col flex-grow bg-white h-full overflow-auto p-6 min-w-[420px] max-w-3xl">
+      <header class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-semibold">Mapa de Mesas</h1>
+        <button id="btn-add-mesa" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition" type="button" aria-haspopup="dialog" aria-controls="modal-add" aria-expanded="false">
+          Adicionar Mesa
+        </button>
+      </header>
+      <section id="mesas-grid" class="grid grid-cols-3 gap-4" aria-label="Mapa de mesas" role="list">
+        <!-- Mesas serão renderizadas aqui -->
+      </section>
+    </main>
+
+    <!-- Painel direito: detalhes -->
+    <aside id="detalhes-painel" class="w-96 bg-gray-800 text-white p-6 flex flex-col space-y-6 overflow-auto" aria-live="polite" aria-atomic="true" aria-relevant="additions removals" tabindex="0" aria-label="Detalhes da mesa selecionada">
+      <h2 class="text-xl font-semibold mb-2">Detalhes da Mesa</h2>
+      <div id="detalhes-content" class="flex-grow flex flex-col items-center justify-center space-y-4">
+        <p class="text-gray-400 italic">Selecione uma mesa para ver os detalhes</p>
+      </div>
+      <section id="qrcode-container" class="hidden flex flex-col items-center space-y-3" aria-label="Código QR da mesa">
+        <h3 class="text-lg font-semibold">QR Code da mesa</h3>
+        <div id="qrcode" class="bg-white p-2 rounded shadow-md" role="img" aria-live="polite" aria-label="Código QR"></div>
+        <button id="print-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500" type="button">
+          Imprimir QR Code
+        </button>
+      </section>
+    </aside>
+
+  </div>
+
+  <!-- Modal para adicionar mesa -->
+  <div id="modal-add" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-desc" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50" tabindex="-1">
+    <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-lg mx-4 relative">
+      <h3 id="modal-title" class="text-xl font-semibold mb-4">Adicionar Nova Mesa</h3>
+      <p id="modal-desc" class="sr-only">Formulário para adicionar uma nova mesa com nome e status.</p>
+      <form id="form-add-mesa" class="space-y-4" novalidate>
+        <div>
+          <label for="nome-mesa" class="block font-medium text-gray-700">Nome da Mesa</label>
+          <input id="nome-mesa" name="nome-mesa" type="text" required placeholder="Ex: Mesa 10" autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-600" />
+          <p class="text-red-600 text-sm mt-1 hidden" id="erro-nome">Por favor, informe um nome válido.</p>
+        </div>
+        <div>
+          <label for="status-mesa" class="block font-medium text-gray-700">Status da Mesa</label>
+          <select id="status-mesa" name="status-mesa" required aria-required="true" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-600">
+            <option value="" disabled selected>Selecione o status</option>
+            <option value="Disponível">Disponível</option>
+            <option value="Ocupada">Ocupada</option>
+            <option value="Reservada">Reservada</option>
+            <option value="Limpeza">Limpeza</option>
+          </select>
+          <p class="text-red-600 text-sm mt-1 hidden" id="erro-status">Por favor, selecione um status.</p>
+        </div>
+        <div class="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+          <button type="button" id="btn-cancelar" class="px-4 py-2 rounded bg-gray-300 text-gray-700 hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 transition">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 transition">Adicionar</button>
+        </div>
+      </form>
+      <button type="button" id="btn-fechar-modal" aria-label="Fechar modal" class="absolute top-3 right-3 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 rounded">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const mesas = [
+        { nome: 'Mesa 01', status: 'Disponível' },
+        { nome: 'Mesa 02', status: 'Ocupada' },
+        { nome: 'Mesa 03', status: 'Reservada' },
+        { nome: 'Mesa 04', status: 'Limpeza' }
+      ];
+
+      // DOM elements
+      const mesaGrid = $('#mesas-grid');
+      const detalhesContent = $('#detalhes-content');
+      const qrcodeContainer = $('#qrcode-container');
+      const qrcodeDiv = $('#qrcode');
+      const printBtn = $('#print-btn');
+
+      const modalAdd = $('#modal-add');
+      const formAddMesa = $('#form-add-mesa');
+      const nomeMesaInput = $('#nome-mesa');
+      const statusMesaSelect = $('#status-mesa');
+      const btnCancelar = $('#btn-cancelar');
+      const btnFecharModal = $('#btn-fechar-modal');
+      const btnAddMesa = $('#btn-add-mesa');
+      const erroNome = $('#erro-nome');
+      const erroStatus = $('#erro-status');
+
+      let selecionadaMesa = null;
+
+      function mapStatusToColor(status) {
+        switch(status) {
+          case 'Disponível': return 'bg-green-500';
+          case 'Ocupada': return 'bg-red-600';
+          case 'Reservada': return 'bg-yellow-400';
+          case 'Limpeza': return 'bg-gray-500';
+          default: return 'bg-gray-400';
+        }
+      }
+
+      // Render mesas
+      function renderMesas() {
+        mesaGrid.empty();
+        mesas.forEach((mesa, index) => {
+          const statusColor = mapStatusToColor(mesa.status);
+          const mesaBtn = $(`
+            <button type="button" 
+              class="relative rounded shadow p-4 flex flex-col items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 transition 
+              aria-selected="false"
+              aria-label="Mesa ${mesa.nome} - Status ${mesa.status}"
+              title="Mesa ${mesa.nome}, Status: ${mesa.status}">
+              <div class="${statusColor} w-8 h-8 rounded-full mb-2" aria-hidden="true"></div>
+              <span class="text-base font-semibold">${mesa.nome}</span>
+              <span class="text-xs text-gray-600 mt-1">${mesa.status}</span>
+            </button>
+          `);
+
+          // Adicionar classe para mesa selecionada
+          if (selecionadaMesa === mesa) {
+            mesaBtn.addClass('ring-4 ring-green-500');
+            mesaBtn.attr('aria-selected', 'true');
+          } else {
+            mesaBtn.attr('aria-selected', 'false');
+          }
+
+          mesaBtn.on('click', () => {
+            selecionadaMesa = mesa;
+            renderMesas();
+            showDetalhesMesa(mesa);
+          });
+
+          mesaGrid.append(mesaBtn);
+        });
+      }
+
+      // Mostrar detalhes da mesa + QRCode
+      function showDetalhesMesa(mesa) {
+        detalhesContent.empty().append(`
+          <div>
+            <p class="text-lg font-semibold">Nome: ${mesa.nome}</p>
+            <p class="mt-1">Status: <span class="font-medium">${mesa.status}</span></p>
+          </div>
+        `);
+        qrcodeContainer.show();
+        qrcodeDiv.empty();
+
+        // Gerar QR Code com nome da mesa
+        qrcodeDiv.qrcode({
+          text: mesa.nome,
+          width: 180,
+          height: 180,
+          correctLevel: 0
+        });
+
+        // Focar painel para suporte acessibilidade
+        $('#detalhes-painel').focus();
+      }
+
+      // Abrir modal adicionar
+      btnAddMesa.on('click', () => {
+        modalAdd.removeClass('hidden');
+        $('body').addClass('modal-open');
+        formAddMesa[0].reset();
+        erroNome.hide();
+        erroStatus.hide();
+        nomeMesaInput.focus();
+        btnAddMesa.attr('aria-expanded', 'true');
+      });
+
+      // Fechar modal adiciona mesa
+      function fecharModal() {
+        modalAdd.addClass('hidden');
+        $('body').removeClass('modal-open');
+        btnAddMesa.attr('aria-expanded', 'false');
+        btnAddMesa.focus();
+      }
+      btnCancelar.on('click', fecharModal);
+      btnFecharModal.on('click', fecharModal);
+
+      // Fechar modal com ESC
+      $(document).on('keydown', e => {
+        if (e.key === 'Escape' && !modalAdd.hasClass('hidden')) {
+          fecharModal();
+        }
+      });
+
+      // Validação simples do formulário
+      function validarFormulario() {
+        let valid = true;
+        if (!nomeMesaInput.val().trim()) {
+          erroNome.show();
+          valid = false;
+        } else {
+          erroNome.hide();
+        }
+        if (!statusMesaSelect.val()) {
+          erroStatus.show();
+          valid = false;
+        } else {
+          erroStatus.hide();
+        }
+        return valid;
+      }
+
+      // Submeter formulário - adiciona mesa
+      formAddMesa.on('submit', e => {
+        e.preventDefault();
+        if (!validarFormulario()) {
+          return;
+        }
+        const nome = nomeMesaInput.val().trim();
+        const status = statusMesaSelect.val();
+
+        // Checar se já existe mesa com o mesmo nome (case insensitive)
+        if (mesas.some(m => m.nome.toLowerCase() === nome.toLowerCase())) {
+          alert('Já existe uma mesa com esse nome.');
+          nomeMesaInput.focus();
+          return;
+        }
+
+        // Adicionar e atualizar lista
+        const novaMesa = { nome, status };
+        mesas.push(novaMesa);
+        selecionadaMesa = novaMesa;
+
+        renderMesas();
+        showDetalhesMesa(novaMesa);
+        fecharModal();
+      });
+
+      // Imprimir QR Code
+      printBtn.on('click', () => {
+        if (!selecionadaMesa) return;
+        const nomeMesaImprimir = selecionadaMesa.nome;
+
+        
+      });
+
+      // Renderiza inicial
+      renderMesas();
+    });
+  </script>
+</body>
+</html>
+
